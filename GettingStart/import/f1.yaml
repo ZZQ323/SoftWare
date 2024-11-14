@@ -1,4 +1,0 @@
-import:
-  - broker.yaml
-  - pub.yaml
-  - sub.yaml
