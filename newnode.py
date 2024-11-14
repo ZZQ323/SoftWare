@@ -48,11 +48,6 @@ class DataStreamer(Node):
         self.logger.info("Client disconnected: %s", uuid)
         return ws
 
-    async def _send(self, data):
-        message = json.dumps(data)
-        for ws in self._clients.values():
-            if not ws.closed:
-                await ws.send_str(message)
 
     def update(self):
         # Forward node input streams to WebSocket
