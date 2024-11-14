@@ -1,0 +1,51 @@
+graphs:
+
+# ---------------------------
+  - id: Broker-Graph
+    nodes:
+    - id: broker
+      module: timeflux.nodes.zmq
+      class: Broker 
+#-----------------------------------
+  - id: EEG-Graph
+    nodes:
+    - id: lsl_acquire
+      module: timeflux.nodes.lsl
+      class: Receive
+      params:
+        prop: type
+        value: EEG10
+        channels: [1, 2, 3, 4, 5, 6, 7, 8]
+    - id: pub
+      module: timeflux.nodes.zmq
+      class: Pub
+      params:
+        topic: sig
+    edges:
+    - source: lsl_acquire
+      target: pub
+    rate: 10
+
+#-------------------------------------
+  - id: Disp-Graph
+    nodes:
+    - id: sub
+      module: timeflux.nodes.zmq
+      class: Sub
+      params:
+        topics: [sig]
+
+    # - id: display
+    #   module: timeflux.nodes.debug
+    #   class: Display
+
+    - id: monitor
+      module: timeflux_ui.nodes.ui
+      class: UI
+
+    edges:
+    - source: sub:sig
+      # target: display
+      target: monitor:sig 
+      # :sig —— 一个特定输出端口
+    rate: 10 
