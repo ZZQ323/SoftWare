@@ -54,17 +54,6 @@ class DataStreamer(Node):
             if not ws.closed:
                 await ws.send_str(message)
 
-    def update(self):
-        # Forward node input streams to WebSocket
-        for name, port in self.ports.items():
-            if name.startswith("i_") and port.data is not None:
-                stream = name[2:]
-                data = {
-                    "name": stream,
-                    "data": port.data.to_dict(orient="records"),
-                    "meta": port.meta,
-                }
-                asyncio.run_coroutine_threadsafe(self._send(data), self._loop)
 
     def terminate(self):
         self._loop.call_soon_threadsafe(self._loop.stop)
