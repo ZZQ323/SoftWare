@@ -1,0 +1,211 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <title>Making your first Phaser 3 Game - Part 1</title>
+    <script src="http://cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+    var config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        physics: {
+			// 物理引擎
+            default: 'arcade',
+            arcade: {
+				// 重力加速度
+                gravity: { y: 300 },
+                debug: false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+
+    var stars;
+    var cursors;
+
+    var score = 0;
+    var scoreText;
+
+    var player;
+    var platforms;
+
+    var bombs;
+    var gameOver = false;
+
+    var game = new Phaser.Game(config);
+
+    function preload ()
+    {
+		console.log('Preload function called');
+        this.load.image('sky', 'assets/sky.png');
+        this.load.image('ground', 'assets/platform.png');
+        this.load.image('star', 'assets/star.png');
+        this.load.image('bomb', 'assets/bomb.png');
+        this.load.spritesheet('dude','assets/dude.png',
+			{ frameWidth: 32, frameHeight: 48 }
+        );
+    }
+    
+    function create ()
+    {
+		console.log('Create function called');
+
+        //生成场景
+        this.add.image(400, 300, 'sky');
+        platforms = this.physics.add.staticGroup();
+		// 放大两倍，然后更新
+        platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+        platforms.create(600, 400, 'ground');
+        platforms.create(50, 250, 'ground');
+        platforms.create(750, 220, 'ground');
+        /............................................/
+        //生成精灵
+        player = this.physics.add.sprite(100, 450, 'dude');
+		// 精灵的落地反弹
+        player.setBounce(0.2);
+        player.setCollideWorldBounds(true);
+
+		// 三种状态的相机镜头
+        this.anims.create({
+            key: 'left',
+            frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+            frameRate: 10,
+            repeat: -1
+        });
+        this.anims.create({
+            key: 'turn',
+            frames: [ { key: 'dude', frame: 4 } ],
+            frameRate: 20
+        });
+        this.anims.create({
+            key: 'right',
+            frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        cursors = this.input.keyboard.createCursorKeys();
+		// 键盘控制器
+        /....................................................../
+		// 星星组
+        stars = this.pthysics.add.group({
+            key: 'star', repeat: 11,
+            setXY: { x: 12, y: 0, sepX: 70 
+            }
+        });
+		// 星星批量赋予落地反弹
+        stars.children.iterate(
+			function (child) {
+				child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+			}
+		);//星星对象
+
+        bombs = this.physics.add.group();//炸弹对象
+        scoreText = this.add.text(16, 16, 'score: 0', 
+			{ fontSize: '32px', fill: '#000' }
+		);//分数展示
+        
+		//监听对象碰撞 —— 一种分离
+        this.physics.add.collider(player, platforms);
+		//星星的碰撞监听 —— 一种分离
+        this.physics.add.collider(stars, platforms);
+		//炸弹的碰撞监听 —— 一种分离
+        this.physics.add.collider(bombs, platforms);
+
+		//玩家和星星重合，调用星星消失函数
+        this.physics.add.overlap(player, stars, collectStar, null, this);
+		//玩家碰到炸弹，调用炸弹炸死人函数
+        this.physics.add.collider(player, bombs, hitBomb, null, this);
+        /................................................../
+    
+    }
+
+	// JavaScript 事件循环调用update函数，是游戏的无限循环的主体部分
+    function update ()
+    {
+		console.log('Update function called');
+        if (gameOver){ return; }
+
+		// cursors 监听到你按下了对应的键，对应的状态改变
+        if (cursors.left.isDown){
+            player.setVelocityX(-160);
+            player.anims.play('left', true);
+        }else if (cursors.right.isDown){
+            player.setVelocityX(160);
+            player.anims.play('right', true);
+        }else{
+            player.setVelocityX(0);
+            player.anims.play('turn');
+        }
+		
+		// 只有在地上而且按了向上键的时候才能跳
+        if (cursors.up.isDown && player.body.touching.down){
+            player.setVelocityY(-330);
+        }
+		
+		// 与后端通信
+        const socket = new WebSocket('ws://localhost:8000/ws');
+        socket.addEventListener('message', 
+			function (event){
+				const data = JSON.parse(event.data);
+				// 假设第3个数据在 'data' 数组的第三个位置
+				const value = data.data[0]["1"];
+				if (value >900 && player.body.touching.down) {
+					player.setVelocityY(-330); // 跳跃
+					//console.log('Received value:', value);
+				}
+			}
+		)
+    }
+
+
+function collectStar (player, star)
+{
+    star.disableBody(true, true);
+    score += 10;
+    scoreText.setText('Score: ' + score);
+
+    /........................../
+    //拿完后更新新的星星
+    if (stars.countActive(true) === 0)
+    {
+        //  A new batch of stars to collect
+        stars.children.iterate(function (child) {
+            child.enableBody(true, child.x, 0, true, true);
+        });
+        var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+        var bomb = bombs.create(x, 16, 'bomb');
+        bomb.setBounce(1);
+        bomb.setCollideWorldBounds(true);
+        bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+        bomb.allowGravity = false;
+    }
+}
+
+
+function hitBomb (player, bomb)
+{
+    this.physics.pause();
+    player.setTint(0xff0000);
+    player.anims.play('turn');
+    gameOver = true;
+}
+
+</script>
+</body>
+</html>

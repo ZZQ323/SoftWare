@@ -1,0 +1,86 @@
+graphs:
+# ---------------------------
+  - id: Broker-Graph
+    nodes:
+    - id: broker
+      module: timeflux.nodes.zmq
+      class: Broker 
+#-----------------------------------
+  - id: EEG-Graph
+    nodes:
+    - id: lsl_acquire
+      module: timeflux.nodes.lsl
+      class: Receive
+      params:
+        prop: type
+        value: EEG10
+        channels: [1, 2, 3, 4, 5, 6, 7, 8]
+    - id: judge
+      module: timeflux.nodes.debug
+      class: Display
+
+    - id: pub1
+      module: timeflux.nodes.zmq
+      class: Pub
+      params:
+        topic: sig1
+
+    # - id: pub2
+    #   module: timeflux.nodes.zmq
+    #   class: Pub
+    #   params:
+    #     topic: sig2
+
+    - id: bandpass
+      module: timeflux_dsp.nodes.filters
+      class: IIRFilter
+      params:
+        rate: 250
+        order: 3
+        frequencies: [ 1, 20 ]
+    #50Hz 陷波器使用样例：
+
+    - id: notch
+      module: timeflux_dsp.nodes.filters
+      class: IIRFilter
+      params:
+        filter_type: bandstop
+        frequencies: [ 45, 55 ]
+        rate: 250
+        order: 3
+
+#        inputs: [in]
+#        outputs: [out]
+    edges:
+    - source: lsl_acquire
+      target: bandpass
+    - source: bandpass
+      target: notch
+    - source: notch
+      target: pub1
+    # - source: lsl_acquire
+    #   target: pub1
+      rate: 10
+
+#-------------------------------------
+  - id: Disp-Graph
+    nodes:
+    - id: sub
+      module: timeflux.nodes.zmq
+      class: Sub
+      params:
+        topics: [sig1]
+
+    # - id: display
+    #   module: timeflux.nodes.debug
+    #   class: Display
+
+    - id: data_streamer
+      module: newnode
+      class: DataStreamer
+
+    edges:
+    - source: sub:sig1
+      # target: display
+      target: data_streamer:sig1
+    rate: 10 
